@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  chronochat-backend
+
+  Backend for ChronoChat - your time travelling assistant
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment stage
+
+Globals: # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-template-anatomy-globals.html
+  Function:
+    MemorySize: 128
+    Runtime: python3.12
+    Environmenmt:
+      Variables:
+        STAGE: !Ref Stage
+    Tracing: Active
+    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
+    LoggingConfig:
+      LogFormat: JSON
+  Api:
+    TracingEnabled: true
+    Stage: !Ref Stage
+
+Resources:
+  MainFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "chronochat-${Stage}-main"
+      Handler: app.lambda_handler
+      CodeUri: app
+      Description: Main function for ChronoChat backend
+      Architectures:
+      - x86_64
+      Tracing: Active
+      Events:
+        HelloWorldPath:
+          Type: Api           
+          Properties:
+            Path: /hello
+            Method: GET
+        GetTravelsPath:
+          Type: Api           
+          Properties:
+            Path: /travels
+            Method: GET
+        CreateTravelPath:
+          Type: Api           
+          Properties:
+            Path: /travels
+            Method: POST
+        GetTravelByIdPath:
+          Type: Api           
+          Properties:
+            Path: /travels/{id}
+            Method: GET
+        DeleteTravelPath:
+          Type: Api           
+          Properties:
+            Path: /travels/{id}
+            Method: DELETE
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: !Sub "ChronoChat-${Stage}"
+          POWERTOOLS_METRICS_NAMESPACE: !Sub "ChronoChat-${Stage}"
+          LOG_LEVEL: INFO
+          STAGE: !Ref Stage
+      Tags:
+        LambdaPowertools: python
+
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName:
+        Ref: ApplicationResourceGroup
+      AutoConfigurationEnabled: 'true'
+
+Outputs:
+  MainFunctionApi:
+    Description: API Gateway endpoint URL for main function
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/hello"
+
+  MainFunction:
+    Description: Main Function ARN
+    Value: !GetAtt MainFunction.Arn
+
